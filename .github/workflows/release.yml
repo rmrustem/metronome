@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux]
+        goarch: [amd64, arm64]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          BINARY_NAME=metronome-${{ matrix.goos }}-${{ matrix.goarch }}
+          go build -v -o $BINARY_NAME .
+          tar -czvf ${BINARY_NAME}.tar.gz $BINARY_NAME LICENSE README.md
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: metronome-*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
