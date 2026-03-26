@@ -1,0 +1,32 @@
+probes:
+  - name: "godev_http"
+    target: "https://go.dev"
+    timeout: 5s
+    labels:
+      service: "go"
+      region: "us-east-1"
+
+  - name: "godev_tcp"
+    proto: "tcp"
+    target: "go.dev:443"
+    timeout: 5s
+
+  - name: "example_http_with_codes"
+    target: "https://example.com"
+    success_codes: "200-299,404"
+
+  - name: "example_with_contain"
+    target: "https://example.com"
+    contain: "Example Domain"
+
+  - name: "example_with_not_contain"
+    target: "https://example.com"
+    not_contain: "This string is not in the page"
+
+  - name: "github_tls_cert_check"
+    proto: "tcp"
+    target: "github.com:443"
+    timeout: 5s
+    labels:
+      service: "vcs"
+      region: "global"
