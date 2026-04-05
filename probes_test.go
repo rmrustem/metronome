@@ -1,12 +1,19 @@
 package main
 
 import (
+	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"errors"
+	"math/big"
 	"net"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -81,3 +88,47 @@ type timeoutError struct{}
 func (e *timeoutError) Error() string   { return "i/o timeout" }
 func (e *timeoutError) Timeout() bool   { return true }
 func (e *timeoutError) Temporary() bool { return true }
+
+func generateSelfSignedCert() (certPEM, keyPEM []byte, err error) {
+	return generateSelfSignedCertWithExpiryAndNames(time.Now().Add(time.Hour), "localhost", []string{"localhost"}, []net.IP{net.ParseIP("127.0.0.1")})
+}
+
+func generateSelfSignedCertWithExpiry(expiry time.Time) (certPEM, keyPEM []byte, err error) {
+	return generateSelfSignedCertWithExpiryAndNames(expiry, "localhost", []string{"localhost"}, []net.IP{net.ParseIP("127.0.0.1")})
+}
+
+func generateSelfSignedCertWithExpiryAndNames(expiry time.Time, commonName string, dnsNames []string, ipAddresses []net.IP) (certPEM, keyPEM []byte, err error) {
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	template := x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: commonName},
+		NotBefore:             time.Now().Add(-2 * time.Hour),
+		NotAfter:              expiry,
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		DNSNames:              dnsNames,
+		IPAddresses:           ipAddresses,
+	}
+
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &privateKey.PublicKey, privateKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	certBuffer := &bytes.Buffer{}
+	if err := pem.Encode(certBuffer, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
+		return nil, nil, err
+	}
+
+	keyBuffer := &bytes.Buffer{}
+	if err := pem.Encode(keyBuffer, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)}); err != nil {
+		return nil, nil, err
+	}
+
+	return certBuffer.Bytes(), keyBuffer.Bytes(), nil
+}

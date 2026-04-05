@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunHTTPProbe(t *testing.T) {
+func TestHTTPProbe_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -31,162 +31,160 @@ func TestRunHTTPProbe(t *testing.T) {
 	runHTTPProbe(p, collector)
 
 	result, ok := collector.results[p.Name]
-	if !ok {
-		t.Fatalf("Probe result not found for %s", p.Name)
-	}
+	require.True(t, ok)
 
-	if !result.Success {
-		t.Errorf("Expected probe to be successful")
-	}
-
-	if result.Status != 1 {
-		t.Errorf("Expected status to be 1, but got %v", result.Status)
-	}
-
-	if result.Latency <= 0 {
-		t.Errorf("Expected latency to be greater than 0, but got %v", result.Latency)
-	}
-
-	if result.Labels["service"] != "test-svc" {
-		t.Errorf("Expected service label to be 'test-svc', but got %v", result.Labels["service"])
-	}
+	assert.True(t, result.Success)
+	assert.Equal(t, float64(1), result.Status)
+	assert.Greater(t, result.Latency, 0.0)
+	assert.Equal(t, "test-svc", result.Labels["service"])
+	assert.Equal(t, FailureReasonNone, result.FailureReason)
 }
 
-func TestRunHTTPProbe_ErrorHandling(t *testing.T) {
-	// Test case 1: Invalid URL
-	p1 := Probe{
+func TestHTTPProbe_InvalidURL(t *testing.T) {
+	p := Probe{
 		Name:    "test_http_invalid_url",
 		Proto:   "http",
-		Target:  "invalid-url",
+		Target:  "http://[fe80::1%lo0]:80",
 		Timeout: 1 * time.Second,
 	}
 
-	collector1 := NewMetronomeCollector()
-	runHTTPProbe(p1, collector1)
+	collector := NewMetronomeCollector()
+	runHTTPProbe(p, collector)
 
-	result1, ok := collector1.results[p1.Name]
-	if !ok {
-		t.Fatalf("Probe result not found for %s", p1.Name)
-	}
-	if result1.Success {
-		t.Errorf("Expected probe to be unsuccessful for invalid URL")
-	}
-
-	// Test case 2: Non-200 status code
-	server2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError) // 500 Internal Server Error
-	}))
-	defer server2.Close()
-
-	p2 := Probe{
-		Name:    "test_http_non_200",
-		Proto:   "http",
-		Target:  server2.URL,
-		Timeout: 1 * time.Second,
-	}
-
-	collector2 := NewMetronomeCollector()
-	runHTTPProbe(p2, collector2)
-
-	result2, ok := collector2.results[p2.Name]
-	if !ok {
-		t.Fatalf("Probe result not found for %s", p2.Name)
-	}
-	if result2.Success {
-		t.Errorf("Expected probe to be unsuccessful for non-200 status code")
-	}
-
-	// Test case 3: Timeout
-	server3 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(2 * time.Second) // Simulate a slow response
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server3.Close()
-
-	p3 := Probe{
-		Name:    "test_http_timeout",
-		Proto:   "http",
-		Target:  server3.URL,
-		Timeout: 1 * time.Second,
-	}
-
-	collector3 := NewMetronomeCollector()
-	runHTTPProbe(p3, collector3)
-
-	result3, ok := collector3.results[p3.Name]
-	if !ok {
-		t.Fatalf("Probe result not found for %s", p3.Name)
-	}
-	if result3.Success {
-		t.Errorf("Expected probe to be unsuccessful for timeout")
-	}
+	result, ok := collector.results[p.Name]
+	require.True(t, ok)
+	assert.False(t, result.Success)
+	assert.Equal(t, float64(0), result.Status)
+	assert.Equal(t, FailureReasonHTTPInvalidRequest, result.FailureReason)
 }
 
-func TestRunHTTPProbe_BodyChecks(t *testing.T) {
+func TestHTTPProbe_Non200StatusCode(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	p := Probe{
+		Name:    "test_http_non_200",
+		Proto:   "http",
+		Target:  server.URL,
+		Timeout: 1 * time.Second,
+	}
+
+	collector := NewMetronomeCollector()
+	runHTTPProbe(p, collector)
+
+	result, ok := collector.results[p.Name]
+	require.True(t, ok)
+	assert.False(t, result.Success)
+	assert.Equal(t, float64(0), result.Status)
+	assert.Equal(t, FailureReasonHTTPStatusCode, result.FailureReason)
+}
+
+func TestHTTPProbe_Timeout(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(200 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	p := Probe{
+		Name:    "test_http_timeout",
+		Proto:   "http",
+		Target:  server.URL,
+		Timeout: 100 * time.Millisecond,
+	}
+
+	collector := NewMetronomeCollector()
+	runHTTPProbe(p, collector)
+
+	result, ok := collector.results[p.Name]
+	require.True(t, ok)
+	assert.False(t, result.Success)
+	assert.Equal(t, float64(0), result.Status)
+	assert.Equal(t, FailureReasonConnectionTimeout, result.FailureReason)
+}
+
+func TestHTTPProbe_BodyContain_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello, world!"))
 	}))
 	defer server.Close()
 
-	// Test for successful contain
-	pContainSuccess := Probe{
+	p := Probe{
 		Name:    "test_http_contain_success",
 		Proto:   "http",
 		Target:  server.URL,
 		Timeout: 1 * time.Second,
-		Contain: "Hello, world!",
+		Contain: "Hello",
 	}
-	collectorContainSuccess := NewMetronomeCollector()
-	runHTTPProbe(pContainSuccess, collectorContainSuccess)
-	resultContainSuccess, _ := collectorContainSuccess.results[pContainSuccess.Name]
-	if !resultContainSuccess.Success {
-		t.Errorf("Expected probe_status to be 1 for successful contain check")
-	}
+	collector := NewMetronomeCollector()
+	runHTTPProbe(p, collector)
+	result, _ := collector.results[p.Name]
+	assert.True(t, result.Success)
+	assert.Equal(t, float64(1), result.Status)
+}
 
-	// Test for failed contain
-	pContainFail := Probe{
+func TestHTTPProbe_BodyContain_Failure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hello, world!"))
+	}))
+	defer server.Close()
+
+	p := Probe{
 		Name:    "test_http_contain_fail",
 		Proto:   "http",
 		Target:  server.URL,
 		Timeout: 1 * time.Second,
-		Contain: "Goodbye, world!",
+		Contain: "Goodbye",
 	}
-	collectorContainFail := NewMetronomeCollector()
-	runHTTPProbe(pContainFail, collectorContainFail)
-	resultContainFail, _ := collectorContainFail.results[pContainFail.Name]
-	if resultContainFail.Success {
-		t.Errorf("Expected probe_status to be 0 for failed contain check")
-	}
+	collector := NewMetronomeCollector()
+	runHTTPProbe(p, collector)
+	result, _ := collector.results[p.Name]
+	assert.False(t, result.Success)
+	assert.Equal(t, float64(0), result.Status)
+	assert.Equal(t, FailureReasonHTTPBodyContains, result.FailureReason)
+}
 
-	// Test for successful not contain
-	pNotContainSuccess := Probe{
+func TestHTTPProbe_BodyNotContain_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hello, world!"))
+	}))
+	defer server.Close()
+
+	p := Probe{
 		Name:       "test_http_not_contain_success",
 		Proto:      "http",
 		Target:     server.URL,
 		Timeout:    1 * time.Second,
-		NotContain: "Goodbye, world!",
+		NotContain: "Goodbye",
 	}
-	collectorNotContainSuccess := NewMetronomeCollector()
-	runHTTPProbe(pNotContainSuccess, collectorNotContainSuccess)
-	resultNotContainSuccess, _ := collectorNotContainSuccess.results[pNotContainSuccess.Name]
-	if !resultNotContainSuccess.Success {
-		t.Errorf("Expected probe_status to be 1 for successful not_contain check")
-	}
+	collector := NewMetronomeCollector()
+	runHTTPProbe(p, collector)
+	result, _ := collector.results[p.Name]
+	assert.True(t, result.Success)
+	assert.Equal(t, float64(1), result.Status)
+}
 
-	// Test for failed not contain
-	pNotContainFail := Probe{
+func TestHTTPProbe_BodyNotContain_Failure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hello, world!"))
+	}))
+	defer server.Close()
+
+	p := Probe{
 		Name:       "test_http_not_contain_fail",
 		Proto:      "http",
 		Target:     server.URL,
 		Timeout:    1 * time.Second,
-		NotContain: "Hello, world!",
+		NotContain: "Hello",
 	}
-	collectorNotContainFail := NewMetronomeCollector()
-	runHTTPProbe(pNotContainFail, collectorNotContainFail)
-	resultNotContainFail, _ := collectorNotContainFail.results[pNotContainFail.Name]
-	if resultNotContainFail.Success {
-		t.Errorf("Expected probe_status to be 0 for failed not_contain check")
-	}
+	collector := NewMetronomeCollector()
+	runHTTPProbe(p, collector)
+	result, _ := collector.results[p.Name]
+	assert.False(t, result.Success)
+	assert.Equal(t, float64(0), result.Status)
+	assert.Equal(t, FailureReasonHTTPBodyNotContains, result.FailureReason)
 }
 
 func TestIsValidStatusCode(t *testing.T) {
@@ -221,8 +219,7 @@ func TestIsValidStatusCode(t *testing.T) {
 	}
 }
 
-func TestRunHTTPProbe_UserAgent(t *testing.T) {
-	// Test with default User-Agent
+func TestHTTPProbe_UserAgent(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("User-Agent") != "Metronome" {
 			t.Errorf("Expected User-Agent 'Metronome', got '%s'", r.Header.Get("User-Agent"))
@@ -238,7 +235,6 @@ func TestRunHTTPProbe_UserAgent(t *testing.T) {
 	collector1 := NewMetronomeCollector()
 	runHTTPProbe(p1, collector1)
 
-	// Test with custom User-Agent from env var
 	customUA := "MyCustomMetronome/1.0"
 	os.Setenv("METRONOME_HTTP_USER_AGENT", customUA)
 	defer os.Unsetenv("METRONOME_HTTP_USER_AGENT")
@@ -264,118 +260,88 @@ func TestHTTPProbe_DNSFailure(t *testing.T) {
 	probe := Probe{
 		Name:    "test_http_dns_failure",
 		Proto:   "http",
-		Target:  "http://non-existent-domain.local",
+		Target:  "http://non-existent-domain.invalid",
 		Timeout: 1 * time.Second,
 	}
 
 	runHTTPProbe(probe, collector)
 
 	result, ok := collector.results[probe.Name]
-	require.True(t, ok, "Probe result not found")
-	assert.False(t, result.Success, "Probe should have failed")
-	// Note: Sometimes DNS resolution failure can be reported as a connection timeout or other error depending on the environment
-	assert.Contains(t, []int{FailureReasonDNSResolutionError, FailureReasonConnectionTimeout}, result.FailureReason, "Failure reason should be DNSResolutionError or ConnectionTimeout")
+	require.True(t, ok)
+	assert.False(t, result.Success)
+	assert.Equal(t, FailureReasonDNSResolutionError, result.FailureReason)
 }
 
-func TestHTTPProbe_ConnectionTimeout(t *testing.T) {
-	// This test requires a non-routable IP address to simulate a timeout.
-	// 192.0.2.1 is from TEST-NET-1, reserved for documentation and should be non-routable.
-	target := "http://192.0.2.1"
-
+func TestHTTPProbe_ConnectionRefused(t *testing.T) {
 	collector := NewMetronomeCollector()
 	probe := Probe{
-		Name:    "test_http_timeout",
+		Name:    "test_http_connection_refused",
 		Proto:   "http",
-		Target:  target,
-		Timeout: 200 * time.Millisecond, // Short timeout to make the test faster
-	}
-
-	runHTTPProbe(probe, collector)
-
-	result, ok := collector.results[probe.Name]
-	require.True(t, ok, "Probe result not found")
-	assert.False(t, result.Success, "Probe should have failed")
-	assert.Equal(t, FailureReasonConnectionTimeout, result.FailureReason, "Failure reason should be ConnectionTimeout")
-}
-
-func TestHTTPProbe_StatusCodeFailure(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	defer server.Close()
-
-	collector := NewMetronomeCollector()
-	probe := Probe{
-		Name:         "test_http_status_code",
-		Proto:        "http",
-		Target:       server.URL,
-		SuccessCodes: "200-299", // Default success codes
-		Timeout:      1 * time.Second,
-	}
-
-	runHTTPProbe(probe, collector)
-
-	result, ok := collector.results[probe.Name]
-	require.True(t, ok, "Probe result not found")
-	assert.False(t, result.Success, "Probe should have failed")
-	assert.Equal(t, FailureReasonHTTPStatusCode, result.FailureReason, "Failure reason should be HTTPStatusCode")
-}
-
-func TestHTTPProbe_BodyContainsFailure(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hello, world!"))
-	}))
-	defer server.Close()
-
-	collector := NewMetronomeCollector()
-	probe := Probe{
-		Name:    "test_http_body_contains",
-		Proto:   "http",
-		Target:  server.URL,
-		Contain: "should not be found",
+		Target:  "http://127.0.0.1:1",
 		Timeout: 1 * time.Second,
 	}
 
 	runHTTPProbe(probe, collector)
 
 	result, ok := collector.results[probe.Name]
-	require.True(t, ok, "Probe result not found")
-	assert.False(t, result.Success, "Probe should have failed")
-	assert.Equal(t, FailureReasonHTTPBodyContains, result.FailureReason, "Failure reason should be HTTPBodyContains")
+	require.True(t, ok)
+	assert.False(t, result.Success)
+	assert.Equal(t, FailureReasonConnectionRefused, result.FailureReason)
 }
 
-func TestHTTPProbe_BodyNotContainsFailure(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("This text should be found"))
+func TestHTTPProbe_TLS_Success(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
 
-	collector := NewMetronomeCollector()
-	probe := Probe{
-		Name:       "test_http_body_not_contains",
-		Proto:      "http",
-		Target:     server.URL,
-		NotContain: "should be found",
-		Timeout:    1 * time.Second,
+	p := Probe{
+		Name:               "test_http_tls_success",
+		Proto:              "http",
+		Target:             server.URL,
+		Timeout:            1 * time.Second,
+		InsecureSkipVerify: true,
 	}
 
-	runHTTPProbe(probe, collector)
+	collector := NewMetronomeCollector()
+	runHTTPProbe(p, collector)
 
-	result, ok := collector.results[probe.Name]
-	require.True(t, ok, "Probe result not found")
-	assert.False(t, result.Success, "Probe should have failed")
-	assert.Equal(t, FailureReasonHTTPBodyNotContains, result.FailureReason, "Failure reason should be HTTPBodyNotContains")
+	result, ok := collector.results[p.Name]
+	require.True(t, ok)
+	assert.True(t, result.Success)
+	assert.Greater(t, result.TLSExpiry, 0.0)
 }
 
-func TestTLSCertificateInvalid(t *testing.T) {
-	// Create a self-signed certificate for the server
-	serverCert, serverKey, err := generateSelfSignedCert()
+func TestHTTPProbe_TLS_UnknownAuthority(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	p := Probe{
+		Name:               "test_http_unknown_authority",
+		Proto:              "http",
+		Target:             server.URL,
+		Timeout:            1 * time.Second,
+		InsecureSkipVerify: false,
+	}
+
+	collector := NewMetronomeCollector()
+	runHTTPProbe(p, collector)
+
+	result, ok := collector.results[p.Name]
+	require.True(t, ok)
+	assert.False(t, result.Success)
+	assert.Equal(t, FailureReasonTLSUnknownAuthority, result.FailureReason)
+}
+
+func TestHTTPProbe_TLS_CertificateExpired(t *testing.T) {
+	certPEM, keyPEM, err := generateSelfSignedCertWithExpiry(time.Now().Add(-time.Hour))
 	require.NoError(t, err)
 
-	cert, err := tls.X509KeyPair(serverCert, serverKey)
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
 	require.NoError(t, err)
 
-	// Start a TLS server with the self-signed certificate
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -383,21 +349,78 @@ func TestTLSCertificateInvalid(t *testing.T) {
 	server.StartTLS()
 	defer server.Close()
 
-	// The probe will fail because the client doesn't trust the self-signed cert
-	collector := NewMetronomeCollector()
-	probe := Probe{
-		Name:    "test_tls_invalid_cert",
-		Proto:   "http",
-		Target:  strings.Replace(server.URL, "127.0.0.1", "localhost", 1), // Use localhost for cert validation
-		Timeout: 1 * time.Second,
-		// Set InsecureSkipVerify to false to enable TLS verification
+	p := Probe{
+		Name:               "test_http_expired_cert",
+		Proto:              "http",
+		Target:             server.URL,
+		Timeout:            1 * time.Second,
 		InsecureSkipVerify: false,
 	}
 
-	runHTTPProbe(probe, collector)
-	result, found := collector.results[probe.Name]
-	require.True(t, found)
+	collector := NewMetronomeCollector()
+	runHTTPProbe(p, collector)
 
-	assert.False(t, result.Success, "Probe should have failed due to invalid TLS certificate")
-	assert.Contains(t, []int{FailureReasonTLSUnknownAuthority, FailureReasonTLSHandshakeError}, result.FailureReason, "Expected FailureReasonTLSUnknownAuthority or FailureReasonTLSHandshakeError")
+	result, ok := collector.results[p.Name]
+	require.True(t, ok)
+	assert.False(t, result.Success)
+	assert.Equal(t, FailureReasonTLSCertificateExpired, result.FailureReason)
+}
+
+func TestHTTPProbe_BodyReadError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "100")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("too short"))
+	}))
+	defer server.Close()
+
+	p := Probe{
+		Name:    "test_http_body_read_error",
+		Proto:   "http",
+		Target:  server.URL,
+		Timeout: 1 * time.Second,
+		Contain: "some-text",
+	}
+
+	collector := NewMetronomeCollector()
+	runHTTPProbe(p, collector)
+
+	result, ok := collector.results[p.Name]
+	require.True(t, ok)
+	assert.False(t, result.Success)
+	assert.Equal(t, float64(0), result.Status)
+	assert.Equal(t, FailureReasonHTTPBodyReadError, result.FailureReason)
+}
+
+func TestHTTPProbe_TLSHostnameError(t *testing.T) {
+	certPEM, keyPEM, err := generateSelfSignedCertWithExpiryAndNames(time.Now().Add(time.Hour), "example.com", []string{"example.com"}, nil)
+	require.NoError(t, err)
+
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	require.NoError(t, err)
+
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	server.TLS = &tls.Config{Certificates: []tls.Certificate{cert}}
+	server.StartTLS()
+	defer server.Close()
+
+	targetURL := strings.Replace(server.URL, "localhost", "127.0.0.1", 1)
+
+	p := Probe{
+		Name:               "test_http_hostname_error",
+		Proto:              "http",
+		Target:             targetURL,
+		Timeout:            1 * time.Second,
+		InsecureSkipVerify: false,
+	}
+
+	collector := NewMetronomeCollector()
+	runHTTPProbe(p, collector)
+
+	result, ok := collector.results[p.Name]
+	require.True(t, ok)
+	assert.False(t, result.Success)
+	assert.Equal(t, FailureReasonTLSHostnameError, result.FailureReason)
 }

@@ -13,7 +13,6 @@ func TestMetronomeCollector_DynamicLabels(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(c)
 
-	// Probe 1: success with base labels
 	c.UpdateResult(ProbeResult{
 		Name:    "probe1",
 		Labels:  prometheus.Labels{"name": "probe1", "proto": "tcp", "target": "a"},
@@ -22,7 +21,6 @@ func TestMetronomeCollector_DynamicLabels(t *testing.T) {
 		Latency: 0.1,
 	})
 
-	// Probe 2: success with an extra label 'region'
 	c.UpdateResult(ProbeResult{
 		Name:      "probe2",
 		Labels:    prometheus.Labels{"name": "probe2", "proto": "https", "target": "b", "region": "us-east-1"},
@@ -32,7 +30,6 @@ func TestMetronomeCollector_DynamicLabels(t *testing.T) {
 		TLSExpiry: 1234567890,
 	})
 
-	// Probe 3: success with another extra label 'service'
 	c.UpdateResult(ProbeResult{
 		Name:    "probe3",
 		Labels:  prometheus.Labels{"name": "probe3", "proto": "http", "target": "c", "service": "web"},
@@ -41,7 +38,6 @@ func TestMetronomeCollector_DynamicLabels(t *testing.T) {
 		Latency: 0.3,
 	})
 
-	// Update probe1 (increment requests)
 	c.UpdateResult(ProbeResult{
 		Name:    "probe1",
 		Labels:  prometheus.Labels{"name": "probe1", "proto": "tcp", "target": "a"},
@@ -50,7 +46,6 @@ func TestMetronomeCollector_DynamicLabels(t *testing.T) {
 		Latency: 0.11,
 	})
 
-	// All metrics should now have the labels: name, proto, region, service, target
 	expected := `
 		# HELP metronome_probe_failure_reason Reason code for probe failure (0 for success)
 		# TYPE metronome_probe_failure_reason gauge
@@ -81,7 +76,6 @@ func TestMetronomeCollector_DynamicLabels(t *testing.T) {
 		t.Errorf("unexpected collecting result:\n%s", err)
 	}
 
-	// Remove probe2 and check again
 	c.RemoveResult("probe2")
 
 	expectedAfterRemove := `

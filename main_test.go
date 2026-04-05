@@ -11,11 +11,9 @@ func TestGetEnvStr(t *testing.T) {
 	key := "METRONOME_TEST_VAR"
 	fallback := "default"
 
-	// Test default value
 	os.Unsetenv(key)
 	assert.Equal(t, fallback, getEnvStr(key, fallback))
 
-	// Test environment value
 	os.Setenv(key, "custom")
 	defer os.Unsetenv(key)
 	assert.Equal(t, "custom", getEnvStr(key, fallback))

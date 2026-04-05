@@ -26,11 +26,12 @@ func runTCPProbe(ctx context.Context, p Probe, collector *MetronomeCollector) {
 	result := ProbeResult{
 		Name:    p.Name,
 		Labels:  labels,
-		Success: false,
+		Latency: latency,
+		Success: true,
+		Status:  1,
 	}
 
 	if err != nil {
-		result.Latency = latency
 		result.Success = false
 		result.Status = 0
 		result.FailureReason = classifyError(err)
@@ -39,9 +40,10 @@ func runTCPProbe(ctx context.Context, p Probe, collector *MetronomeCollector) {
 	}
 	defer conn.Close()
 
-	result.Success = true
-	result.Status = 1
-	result.Latency = latency
+	if !p.TLS {
+		collector.UpdateResult(result)
+		return
+	}
 
 	host, _, err := net.SplitHostPort(p.Target)
 	if err != nil {
@@ -73,6 +75,5 @@ func runTCPProbe(ctx context.Context, p Probe, collector *MetronomeCollector) {
 			result.TLSExpiry = float64(state.PeerCertificates[0].NotAfter.Unix())
 		}
 	}
-
 	collector.UpdateResult(result)
 }

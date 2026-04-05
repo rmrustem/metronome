@@ -16,6 +16,7 @@ type Probe struct {
 	Contain            string            `yaml:"contain"`
 	NotContain         string            `yaml:"not_contain"`
 	InsecureSkipVerify bool              `yaml:"insecure_skip_verify"`
+	TLS                bool              `yaml:"tls"`
 }
 
 func (p *Probe) Equal(other Probe) bool {
@@ -26,7 +27,8 @@ func (p *Probe) Equal(other Probe) bool {
 		p.SuccessCodes != other.SuccessCodes ||
 		p.Contain != other.Contain ||
 		p.NotContain != other.NotContain ||
-		p.InsecureSkipVerify != other.InsecureSkipVerify {
+		p.InsecureSkipVerify != other.InsecureSkipVerify ||
+		p.TLS != other.TLS {
 		return false
 	}
 	if len(p.Labels) != len(other.Labels) {

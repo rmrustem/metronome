@@ -9,7 +9,6 @@ import (
 )
 
 func TestNewConfigLoader_File(t *testing.T) {
-	// Create a temporary config file
 	content := []byte(`
 probes:
   - name: "test_probe"
@@ -20,7 +19,7 @@ probes:
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(tmpfile.Name()) // clean up
+	defer os.Remove(tmpfile.Name())
 
 	if _, err := tmpfile.Write(content); err != nil {
 		t.Fatal(err)
@@ -61,7 +60,6 @@ func TestNewConfigLoader_File_NotFound(t *testing.T) {
 }
 
 func TestNewConfigLoader_File_Malformed(t *testing.T) {
-	// Create a temporary malformed config file
 	content := []byte(`
 probes:
   - name: "test_probe"
@@ -73,7 +71,7 @@ malformed
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(tmpfile.Name()) // clean up
+	defer os.Remove(tmpfile.Name())
 
 	if _, err := tmpfile.Write(content); err != nil {
 		t.Fatal(err)
@@ -91,7 +89,6 @@ malformed
 }
 
 func TestNewConfigLoader_URL(t *testing.T) {
-	// Create a mock HTTP server
 	content := `
 probes:
   - name: "test_probe_url"
@@ -130,7 +127,6 @@ probes:
 
 func TestNewConfigLoader_URL_WithAuth(t *testing.T) {
 	authHeaderValue := "Bearer my-secret-token"
-	// Create a mock HTTP server that checks for the auth header
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != authHeaderValue {
 			t.Errorf("Expected Authorization header '%s', got '%s'", authHeaderValue, r.Header.Get("Authorization"))
@@ -167,7 +163,6 @@ func TestNewConfigLoader_File_Reload(t *testing.T) {
 	os.Setenv("METRONOME_CONFIG_RELOAD_INTERVAL", "1")
 	defer os.Unsetenv("METRONOME_CONFIG_RELOAD_INTERVAL")
 
-	// Create a temporary config file
 	content1 := []byte(`
 probes:
   - name: "test_probe"
@@ -195,7 +190,6 @@ probes:
 	defer loader.Stop()
 	loader.Start()
 
-	// Wait for initial config
 	select {
 	case config := <-loader.Changes():
 		if len(config.Probes) != 1 {
@@ -205,7 +199,6 @@ probes:
 		t.Fatal("timed out waiting for initial config")
 	}
 
-	// open and write to the file again to trigger a reload on next tick
 	err = os.WriteFile(tmpfile.Name(), []byte(`
 probes:
   - name: "test_probe"
@@ -217,7 +210,6 @@ probes:
 		t.Fatal(err)
 	}
 
-	// Wait for reloaded config
 	select {
 	case config := <-loader.Changes():
 		if len(config.Probes) != 2 {

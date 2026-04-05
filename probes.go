@@ -100,10 +100,12 @@ func classifyError(err error) int {
 		return FailureReasonConnectionRefused
 	}
 
-	if _, ok := err.(x509.UnknownAuthorityError); ok {
+	var unknownAuthErr x509.UnknownAuthorityError
+	if errors.As(err, &unknownAuthErr) {
 		return FailureReasonTLSUnknownAuthority
 	}
-	if _, ok := err.(x509.HostnameError); ok {
+	var hostnameErr x509.HostnameError
+	if errors.As(err, &hostnameErr) {
 		return FailureReasonTLSHostnameError
 	}
 
@@ -119,6 +121,5 @@ func classifyError(err error) int {
 		return FailureReasonTLSHandshakeError
 	}
 
-	// Default fallback
 	return FailureReasonTLSHandshakeError
 }

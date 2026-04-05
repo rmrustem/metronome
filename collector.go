@@ -7,7 +7,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// ProbeResult holds the outcome of a single probe execution.
 type ProbeResult struct {
 	Name          string
 	Labels        prometheus.Labels
@@ -20,7 +19,6 @@ type ProbeResult struct {
 	Requests      float64
 }
 
-// MetronomeCollector implements the prometheus.Collector interface.
 type MetronomeCollector struct {
 	probeStatusDesc        *prometheus.Desc
 	probeLatencyDesc       *prometheus.Desc
@@ -34,7 +32,6 @@ type MetronomeCollector struct {
 	mutex     sync.RWMutex
 }
 
-// NewMetronomeCollector creates a new, empty collector.
 func NewMetronomeCollector() *MetronomeCollector {
 	return &MetronomeCollector{
 		labelKeys: []string{"name", "proto", "target"},
@@ -51,7 +48,6 @@ func (c *MetronomeCollector) createDescs() {
 	c.probeFailureReasonDesc = prometheus.NewDesc("metronome_probe_failure_reason", "Reason code for probe failure (0 for success)", c.labelKeys, nil)
 }
 
-// Describe implements prometheus.Collector.
 func (c *MetronomeCollector) Describe(ch chan<- *prometheus.Desc) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
@@ -68,7 +64,6 @@ func (c *MetronomeCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.probeFailureReasonDesc
 }
 
-// Collect implements prometheus.Collector.
 func (c *MetronomeCollector) Collect(ch chan<- prometheus.Metric) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
@@ -89,7 +84,6 @@ func (c *MetronomeCollector) Collect(ch chan<- prometheus.Metric) {
 
 		ch <- prometheus.MustNewConstMetric(c.probeRequestsDesc, prometheus.CounterValue, res.Requests, labelValues...)
 
-		// Always emit failure reason, 0 for success
 		ch <- prometheus.MustNewConstMetric(c.probeFailureReasonDesc, prometheus.GaugeValue, float64(res.FailureReason), labelValues...)
 
 		if res.Success {
@@ -152,7 +146,6 @@ func (c *MetronomeCollector) UpdateResult(res ProbeResult) {
 	c.results[res.Name] = res
 }
 
-// RemoveResult removes a probe result from the collector.
 func (c *MetronomeCollector) RemoveResult(probeName string) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()

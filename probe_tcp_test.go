@@ -1,14 +1,8 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
-	"math/big"
+	"crypto/tls"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -19,204 +13,281 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRunTCPProbe(t *testing.T) {
-	// Test 1: Successful probe against a TLS server
-	t.Run("TLS_Server_Success", func(t *testing.T) {
-		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}))
-		defer server.Close()
+func TestTCPProbe_Success(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
 
-		p := Probe{
-			Name:               "test_tls_server",
-			Proto:              "tcp",
-			Target:             server.Listener.Addr().String(),
-			Timeout:            1 * time.Second,
-			InsecureSkipVerify: true, // httptest.NewTLSServer uses a self-signed cert
-			Labels:             map[string]string{"service": "tls-test-svc"},
-		}
-
-		collector := NewMetronomeCollector()
-		runTCPProbe(context.Background(), p, collector)
-
-		result, ok := collector.results[p.Name]
-		if !ok {
-			t.Fatalf("Probe result not found for %s", p.Name)
-		}
-		if !result.Success {
-			t.Errorf("Expected probe to be successful")
-		}
-		if result.TLSExpiry <= 0 {
-			t.Errorf("Expected tls_expires to be > 0 for a TLS server, but got %v", result.TLSExpiry)
-		}
-	})
-
-	// Test 2: Successful probe against a non-TLS server
-	t.Run("NonTLS_Server_Success", func(t *testing.T) {
-		ln, err := net.Listen("tcp", "127.0.0.1:0")
-		if err != nil {
-			t.Fatalf("Failed to start TCP listener: %v", err)
-		}
-		defer ln.Close()
-
-		// Start a simple TCP server that accepts connections
-		go func() {
-			for {
-				conn, err := ln.Accept()
-				if err != nil {
-					return
-				}
-				conn.Close()
-			}
-		}()
-
-		p := Probe{
-			Name:    "test_nontls_server",
-			Proto:   "tcp",
-			Target:  ln.Addr().String(),
-			Timeout: 1 * time.Second,
-		}
-
-		collector := NewMetronomeCollector()
-		runTCPProbe(context.Background(), p, collector)
-
-		_, ok := collector.results[p.Name]
-		if !ok {
-			t.Fatalf("Probe result not found for %s", p.Name)
-		}
-	})
-
-	// Test 4: SNI check (ServerName set)
-	t.Run("SNI_ServerName_Set", func(t *testing.T) {
-		ln, err := net.Listen("tcp", "127.0.0.1:0")
-		require.NoError(t, err)
-		defer ln.Close()
-
-		go func() {
+	go func() {
+		for {
 			conn, err := ln.Accept()
 			if err != nil {
 				return
 			}
-			defer conn.Close()
-			// Just accept and close to simulate a server that doesn't do TLS
-			// We want to check if the probe attempt to do TLS with correct ServerName
-		}()
-
-		p := Probe{
-			Name:    "test_sni",
-			Proto:   "tcp",
-			Target:  "example.com:443", // We'll override the address but keep the target string for hostname extraction
-			Timeout: 1 * time.Second,
+			conn.Close()
 		}
+	}()
 
-		// Mock the dialer or just use a local address but keep p.Target as "example.com:443"
-		// Wait, runTCPProbe uses p.Target for Dial.
-		// Let's modify p.Target to use our local listener but we need to ensure hostname is extracted correctly.
-		p.Target = ln.Addr().String()
+	p := Probe{
+		Name:               "test_tcp_server",
+		Proto:              "tcp",
+		Target:             ln.Addr().String(),
+		Timeout:            1 * time.Second,
+		InsecureSkipVerify: true,
+	}
 
-		collector := NewMetronomeCollector()
-		runTCPProbe(context.Background(), p, collector)
+	collector := NewMetronomeCollector()
+	runTCPProbe(context.Background(), p, collector)
 
-		result, ok := collector.results[p.Name]
-		require.True(t, ok)
-		// It will fail handshake because our mock server doesn't do TLS,
-		// but we are mostly checking it doesn't crash and classifies the error.
-		assert.False(t, result.Success)
-		assert.Equal(t, FailureReasonTLSHandshakeError, result.FailureReason)
-	})
-
-	// Test 3: Failed probe against a closed port
-	t.Run("Server_Failure", func(t *testing.T) {
-		p := Probe{
-			Name:    "test_tcp_fail",
-			Proto:   "tcp",
-			Target:  "127.0.0.1:1", // Assuming this port is not in use
-			Timeout: 1 * time.Second,
-		}
-
-		collector := NewMetronomeCollector()
-		runTCPProbe(context.Background(), p, collector)
-
-		result, ok := collector.results[p.Name]
-		if !ok {
-			t.Fatalf("Probe result not found for %s", p.Name)
-		}
-		if result.Success {
-			t.Errorf("Expected probe to be unsuccessful")
-		}
-	})
+	result, ok := collector.results[p.Name]
+	require.True(t, ok)
+	assert.True(t, result.Success)
+	assert.Equal(t, float64(0), result.TLSExpiry)
 }
 
 func TestTCPProbe_ConnectionRefused(t *testing.T) {
-	collector := NewMetronomeCollector()
-	probe := Probe{
+	p := Probe{
 		Name:    "test_tcp_refused",
 		Proto:   "tcp",
-		Target:  "localhost:1", // Port where nobody is listening
-		Timeout: 500 * time.Millisecond,
+		Target:  "127.0.0.1:1",
+		Timeout: 1 * time.Second,
 	}
 
-	runTCPProbe(context.Background(), probe, collector)
+	collector := NewMetronomeCollector()
+	runTCPProbe(context.Background(), p, collector)
 
-	result, ok := collector.results[probe.Name]
-	require.True(t, ok, "Probe result not found")
-
-	assert.False(t, result.Success, "Probe should have failed")
-	assert.Equal(t, FailureReasonConnectionRefused, result.FailureReason, "Failure reason should be ConnectionRefused")
+	result, ok := collector.results[p.Name]
+	require.True(t, ok)
+	assert.False(t, result.Success)
+	assert.Equal(t, FailureReasonConnectionRefused, result.FailureReason)
 }
 
 func TestTCPProbe_ConnectionTimeout(t *testing.T) {
-	// This test requires a non-routable IP address to simulate a timeout.
-	// 240.0.0.0/4 is reserved for future use and should be non-routable.
-	target := "240.0.0.1:12345"
+	p := Probe{
+		Name:    "test_timeout",
+		Proto:   "tcp",
+		Target:  "192.0.2.1:12345", // RFC 5735 non-routable TEST-NET-1
+		Timeout: 100 * time.Millisecond,
+	}
 
 	collector := NewMetronomeCollector()
-	probe := Probe{
-		Name:    "test_tcp_timeout",
-		Proto:   "tcp",
-		Target:  target,
-		Timeout: 100 * time.Millisecond, // Short timeout
-	}
+	runTCPProbe(context.Background(), p, collector)
 
-	runTCPProbe(context.Background(), probe, collector)
-
-	result, ok := collector.results[probe.Name]
-	require.True(t, ok, "Probe result not found")
-	assert.False(t, result.Success, "Probe should have failed")
-	assert.Equal(t, FailureReasonConnectionTimeout, result.FailureReason, "Failure reason should be ConnectionTimeout")
+	result, ok := collector.results[p.Name]
+	require.True(t, ok)
+	assert.False(t, result.Success)
+	assert.Equal(t, FailureReasonConnectionTimeout, result.FailureReason)
 }
 
-func generateSelfSignedCert() (certPEM, keyPEM []byte, err error) {
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		return nil, nil, err
+func TestTCPProbe_DNSFailure(t *testing.T) {
+	p := Probe{
+		Name:    "test_tcp_dns_failure",
+		Proto:   "tcp",
+		Target:  "non-existent-domain.invalid:80",
+		Timeout: 1 * time.Second,
 	}
 
-	template := x509.Certificate{
-		SerialNumber:          big.NewInt(1),
-		Subject:               pkix.Name{CommonName: "localhost"},
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().Add(time.Hour),
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		BasicConstraintsValid: true,
-		IPAddresses:           []net.IP{net.ParseIP("127.0.0.1")},
+	collector := NewMetronomeCollector()
+	runTCPProbe(context.Background(), p, collector)
+
+	result, ok := collector.results[p.Name]
+	require.True(t, ok)
+	assert.False(t, result.Success)
+	assert.Equal(t, FailureReasonDNSResolutionError, result.FailureReason)
+}
+
+func TestTCPProbe_TLS_Success(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	p := Probe{
+		Name:               "test_tls_server",
+		Proto:              "tcp",
+		Target:             server.Listener.Addr().String(),
+		Timeout:            1 * time.Second,
+		InsecureSkipVerify: true,
+		TLS:                true,
 	}
 
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &privateKey.PublicKey, privateKey)
-	if err != nil {
-		return nil, nil, err
+	collector := NewMetronomeCollector()
+	runTCPProbe(context.Background(), p, collector)
+
+	result, ok := collector.results[p.Name]
+	require.True(t, ok)
+	assert.True(t, result.Success)
+	assert.Greater(t, result.TLSExpiry, 0.0)
+}
+
+func TestTCPProbe_TLS_HandshakeError(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		conn.Close()
+	}()
+
+	p := Probe{
+		Name:    "test_handshake_error",
+		Proto:   "tcp",
+		Target:  ln.Addr().String(),
+		Timeout: 1 * time.Second,
+		TLS:     true,
 	}
 
-	certBuffer := &bytes.Buffer{}
-	if err := pem.Encode(certBuffer, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes}); err != nil {
-		return nil, nil, err
+	collector := NewMetronomeCollector()
+	runTCPProbe(context.Background(), p, collector)
+
+	result, ok := collector.results[p.Name]
+	require.True(t, ok)
+	assert.False(t, result.Success)
+	assert.Equal(t, FailureReasonTLSHandshakeError, result.FailureReason)
+}
+
+func TestTCPProbe_TLS_HostnameError(t *testing.T) {
+	certPEM, keyPEM, err := generateSelfSignedCertWithExpiryAndNames(time.Now().Add(time.Hour), "example.com", []string{"example.com"}, nil)
+	require.NoError(t, err)
+
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	require.NoError(t, err)
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+
+	go func() {
+		tlsLn := tls.NewListener(ln, &tls.Config{Certificates: []tls.Certificate{cert}})
+		for {
+			conn, err := tlsLn.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				_ = c.(*tls.Conn).Handshake()
+				c.Close()
+			}(conn)
+		}
+	}()
+
+	p := Probe{
+		Name:               "test_tcp_hostname_error",
+		Proto:              "tcp",
+		Target:             ln.Addr().String(),
+		Timeout:            1 * time.Second,
+		InsecureSkipVerify: false,
+		TLS:                true,
 	}
 
-	keyBuffer := &bytes.Buffer{}
-	if err := pem.Encode(keyBuffer, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)}); err != nil {
-		return nil, nil, err
+	collector := NewMetronomeCollector()
+	runTCPProbe(context.Background(), p, collector)
+
+	result, ok := collector.results[p.Name]
+	require.True(t, ok)
+	assert.False(t, result.Success)
+	assert.Equal(t, FailureReasonTLSHostnameError, result.FailureReason)
+}
+
+func TestTCPProbe_TLS_UnknownAuthority(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	p := Probe{
+		Name:               "test_unknown_authority",
+		Proto:              "tcp",
+		Target:             server.Listener.Addr().String(),
+		Timeout:            1 * time.Second,
+		InsecureSkipVerify: false,
+		TLS:                true,
 	}
 
-	return certBuffer.Bytes(), keyBuffer.Bytes(), nil
+	collector := NewMetronomeCollector()
+	runTCPProbe(context.Background(), p, collector)
+
+	result, ok := collector.results[p.Name]
+	require.True(t, ok)
+	assert.False(t, result.Success)
+	assert.Equal(t, FailureReasonTLSUnknownAuthority, result.FailureReason)
+}
+
+func TestTCPProbe_TLS_CertificateExpired(t *testing.T) {
+	certPEM, keyPEM, err := generateSelfSignedCertWithExpiry(time.Now().Add(-time.Hour))
+	require.NoError(t, err)
+
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	require.NoError(t, err)
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+
+	go func() {
+		tlsLn := tls.NewListener(ln, &tls.Config{Certificates: []tls.Certificate{cert}})
+		for {
+			conn, err := tlsLn.Accept()
+			if err != nil {
+				return
+			}
+			go func(c net.Conn) {
+				_ = c.(*tls.Conn).Handshake()
+				c.Close()
+			}(conn)
+		}
+	}()
+
+	p := Probe{
+		Name:               "test_tcp_expired_cert",
+		Proto:              "tcp",
+		Target:             ln.Addr().String(),
+		Timeout:            1 * time.Second,
+		InsecureSkipVerify: false,
+		TLS:                true,
+	}
+
+	collector := NewMetronomeCollector()
+	runTCPProbe(context.Background(), p, collector)
+
+	result, ok := collector.results[p.Name]
+	require.True(t, ok)
+	assert.False(t, result.Success)
+	assert.Equal(t, FailureReasonTLSCertificateExpired, result.FailureReason)
+}
+
+func TestTCPProbe_TLS_HandshakeFailed_NoFallback(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		conn.Write([]byte("GET / HTTP/1.1\r\n\r\n"))
+		conn.Close()
+	}()
+
+	p := Probe{
+		Name:               "test_handshake_error_no_fallback",
+		Proto:              "tcp",
+		Target:             ln.Addr().String(),
+		Timeout:            1 * time.Second,
+		InsecureSkipVerify: false,
+		TLS:                true,
+	}
+
+	collector := NewMetronomeCollector()
+	runTCPProbe(context.Background(), p, collector)
+
+	result, ok := collector.results[p.Name]
+	require.True(t, ok)
+	assert.False(t, result.Success)
+	assert.Equal(t, FailureReasonTLSHandshakeError, result.FailureReason)
 }

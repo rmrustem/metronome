@@ -48,6 +48,7 @@ probes:
   - name: "godev_tcp"
     proto: "tcp"
     target: "go.dev:443"
+    tls: true
     timeout: 5s
 ```
 
@@ -64,6 +65,7 @@ probes:
 | `contain` | String that must be present in the HTTP response body. |
 | `not_contain` | String that must NOT be present in the HTTP response body. |
 | `insecure_skip_verify` | If true, TLS certificate verification is skipped. |
+| `tls` | If true, perform TLS handshake (only for TCP probes, HTTP uses URL scheme). |
 
 ### Environment Variables
 

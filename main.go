@@ -31,7 +31,6 @@ func main() {
 	defer loader.Stop()
 	loader.Start()
 
-	// Wait for the initial config
 	initialConfig := <-loader.Changes()
 	slog.Info("Initial configuration loaded")
 
@@ -40,7 +39,6 @@ func main() {
 
 	probes := make(map[string]*probeRunner)
 
-	// Function to apply config changes
 	applyConfig := func(newConfig *Config) {
 		slog.Info("Applying new configuration")
 
