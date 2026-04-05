@@ -1,5 +1,6 @@
 probes:
   - name: "godev_http"
+    proto: "http"
     target: "https://go.dev"
     timeout: 5s
     labels:
@@ -12,14 +13,17 @@ probes:
     timeout: 5s
 
   - name: "example_http_with_codes"
+    proto: "http"
     target: "https://example.com"
     success_codes: "200-299,404"
 
   - name: "example_with_contain"
+    proto: "http"
     target: "https://example.com"
     contain: "Example Domain"
 
   - name: "example_with_not_contain"
+    proto: "http"
     target: "https://example.com"
     not_contain: "This string is not in the page"
 

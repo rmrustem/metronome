@@ -5,27 +5,16 @@ import (
 	"crypto/tls"
 	"net"
 	"time"
-
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 func runTCPProbe(ctx context.Context, p Probe, collector *MetronomeCollector) {
 	startTime := time.Now()
-	labels := prometheus.Labels{
-		"name":   p.Name,
-		"proto":  "tcp",
-		"target": p.Target,
-	}
-	for k, v := range p.Labels {
-		labels[k] = v
-	}
-
 	conn, err := net.DialTimeout("tcp", p.Target, p.Timeout)
 	latency := time.Since(startTime).Seconds()
 
 	result := ProbeResult{
 		Name:    p.Name,
-		Labels:  labels,
+		Labels:  p.PrecalculatedLabels,
 		Latency: latency,
 	}
 

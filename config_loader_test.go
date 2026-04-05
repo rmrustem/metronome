@@ -12,6 +12,7 @@ func TestNewConfigLoader_File(t *testing.T) {
 	content := []byte(`
 probes:
   - name: "test_probe"
+    proto: "http"
     target: "http://localhost:8080"
     interval: 10s
 `)
@@ -63,6 +64,7 @@ func TestNewConfigLoader_File_Malformed(t *testing.T) {
 	content := []byte(`
 probes:
   - name: "test_probe"
+    proto: "http"
     target: "http://localhost:8080"
     interval: 10s
 malformed
@@ -92,6 +94,7 @@ func TestNewConfigLoader_URL(t *testing.T) {
 	content := `
 probes:
   - name: "test_probe_url"
+    proto: "http"
     target: "http://localhost:9090"
     interval: 15s
 `
@@ -166,6 +169,7 @@ func TestNewConfigLoader_File_Reload(t *testing.T) {
 	content1 := []byte(`
 probes:
   - name: "test_probe"
+    proto: "http"
     target: "http://localhost:8080"
 `)
 	tmpfile, err := os.CreateTemp("", "config.yaml")
@@ -202,8 +206,10 @@ probes:
 	err = os.WriteFile(tmpfile.Name(), []byte(`
 probes:
   - name: "test_probe"
+    proto: "http"
     target: "http://localhost:8080"
   - name: "test_probe_2"
+    proto: "http"
     target: "http://localhost:9090"
 `), 0644)
 	if err != nil {

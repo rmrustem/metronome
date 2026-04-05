@@ -64,6 +64,10 @@ func (c *ConfigLoader) loadConfig() error {
 		return err
 	}
 
+	if err := config.Validate(); err != nil {
+		return err
+	}
+
 	if c.config == nil || !configsAreEqual(&config, c.config) {
 		c.config = &config
 		c.configChanges <- &config

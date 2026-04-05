@@ -9,8 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 func isValidStatusCode(code int, successCodes string) bool {
@@ -47,18 +45,9 @@ func isValidStatusCode(code int, successCodes string) bool {
 }
 
 func runHTTPProbe(p Probe, collector *MetronomeCollector) {
-	labels := prometheus.Labels{
-		"name":   p.Name,
-		"proto":  "http",
-		"target": p.Target,
-	}
-	for k, v := range p.Labels {
-		labels[k] = v
-	}
-
 	result := ProbeResult{
 		Name:   p.Name,
-		Labels: labels,
+		Labels: p.PrecalculatedLabels,
 	}
 
 	req, err := http.NewRequest("GET", p.Target, nil)

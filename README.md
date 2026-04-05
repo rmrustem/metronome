@@ -39,6 +39,7 @@ Metronome uses a YAML configuration file (`config.yaml`) to define the probes.
 ```yaml
 probes:
   - name: "godev_http"
+    proto: "http"
     target: "https://go.dev"
     timeout: 5s
     labels:
@@ -57,7 +58,7 @@ probes:
 | Parameter | Description |
 |-----------|-------------|
 | `name` | Unique name for the probe. |
-| `proto` | Protocol to use (`http` or `tcp`). Defaults to `http` if the target starts with `http`. |
+| `proto` | Protocol to use (`http` or `tcp`). This field is required. |
 | `target` | The URL or host:port to probe. |
 | `timeout` | Probe timeout (e.g., `5s`). |
 | `labels` | Additional key-value pairs to add as Prometheus labels. |

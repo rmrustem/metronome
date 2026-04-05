@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -42,10 +43,32 @@ func main() {
 	applyConfig := func(newConfig *Config) {
 		slog.Info("Applying new configuration")
 
+		labelKeysMap := map[string]bool{
+			"name":   true,
+			"proto":  true,
+			"target": true,
+		}
+
 		newProbes := make(map[string]Probe)
 		for _, p := range newConfig.Probes {
+			proto := strings.ToLower(p.Proto)
+			p.PrecalculatedLabels = prometheus.Labels{
+				"name":   p.Name,
+				"proto":  proto,
+				"target": p.Target,
+			}
+			for k, v := range p.Labels {
+				p.PrecalculatedLabels[k] = v
+				labelKeysMap[k] = true
+			}
 			newProbes[p.Name] = p
 		}
+
+		var labelKeys []string
+		for k := range labelKeysMap {
+			labelKeys = append(labelKeys, k)
+		}
+		collector.UpdateLabelKeys(labelKeys)
 
 		for name, runner := range probes {
 			newProbe, exists := newProbes[name]

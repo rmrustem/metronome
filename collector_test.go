@@ -10,6 +10,7 @@ import (
 
 func TestMetronomeCollector_DynamicLabels(t *testing.T) {
 	c := NewMetronomeCollector()
+	c.UpdateLabelKeys([]string{"name", "proto", "target", "region", "service"})
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(c)
 

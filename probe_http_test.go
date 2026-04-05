@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,6 +26,12 @@ func TestHTTPProbe_Success(t *testing.T) {
 		Target:  server.URL,
 		Timeout: 1 * time.Second,
 		Labels:  map[string]string{"service": "test-svc"},
+		PrecalculatedLabels: prometheus.Labels{
+			"name":    "test_http_success",
+			"proto":   "http",
+			"target":  server.URL,
+			"service": "test-svc",
+		},
 	}
 
 	collector := NewMetronomeCollector()
@@ -216,7 +223,13 @@ func TestHTTPProbe_UserAgent(t *testing.T) {
 
 	p1 := Probe{
 		Name:   "test_http_default_ua",
+		Proto:  "http",
 		Target: server.URL,
+		PrecalculatedLabels: prometheus.Labels{
+			"name":   "test_http_default_ua",
+			"proto":  "http",
+			"target": server.URL,
+		},
 	}
 	collector1 := NewMetronomeCollector()
 	runHTTPProbe(p1, collector1)
@@ -235,7 +248,13 @@ func TestHTTPProbe_UserAgent(t *testing.T) {
 
 	p2 := Probe{
 		Name:   "test_http_custom_ua",
+		Proto:  "http",
 		Target: server2.URL,
+		PrecalculatedLabels: prometheus.Labels{
+			"name":   "test_http_custom_ua",
+			"proto":  "http",
+			"target": server2.URL,
+		},
 	}
 	collector2 := NewMetronomeCollector()
 	runHTTPProbe(p2, collector2)

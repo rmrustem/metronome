@@ -56,12 +56,6 @@ func runProbe(ctx context.Context, p Probe, collector *MetronomeCollector) {
 			go runTCPProbe(ctx, p, collector)
 		case "http":
 			go runHTTPProbe(p, collector)
-		default:
-			if strings.HasPrefix(p.Target, "http") {
-				go runHTTPProbe(p, collector)
-			} else {
-				go runTCPProbe(ctx, p, collector)
-			}
 		}
 
 		select {

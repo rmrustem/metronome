@@ -110,6 +110,16 @@ func (c *MetronomeCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
+func (c *MetronomeCollector) UpdateLabelKeys(keys []string) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	c.labelKeys = make([]string, len(keys))
+	copy(c.labelKeys, keys)
+	sort.Strings(c.labelKeys)
+	c.createDescs()
+}
+
 func (c *MetronomeCollector) UpdateResult(res ProbeResult) {
 	if res.FailureReason != FailureReasonNone {
 		args := make([]any, 0, len(res.Labels)*2+2)
@@ -129,28 +139,12 @@ func (c *MetronomeCollector) UpdateResult(res ProbeResult) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
+	if res.Labels == nil {
+		res.Labels = make(prometheus.Labels)
+	}
+
 	if _, ok := res.Labels["name"]; !ok {
 		res.Labels["name"] = res.Name
-	}
-
-	needsDescUpdate := c.probeStatusDesc == nil
-	for key := range res.Labels {
-		found := false
-		for _, existingKey := range c.labelKeys {
-			if key == existingKey {
-				found = true
-				break
-			}
-		}
-		if !found {
-			c.labelKeys = append(c.labelKeys, key)
-			needsDescUpdate = true
-		}
-	}
-
-	if needsDescUpdate {
-		sort.Strings(c.labelKeys)
-		c.createDescs()
 	}
 
 	if existing, ok := c.results[res.Name]; ok {
