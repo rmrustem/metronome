@@ -57,10 +57,8 @@ func runHTTPProbe(p Probe, collector *MetronomeCollector) {
 	}
 
 	result := ProbeResult{
-		Name:          p.Name,
-		Labels:        labels,
-		Success:       false,
-		FailureReason: FailureReasonNone,
+		Name:   p.Name,
+		Labels: labels,
 	}
 
 	req, err := http.NewRequest("GET", p.Target, nil)
@@ -125,8 +123,6 @@ func runHTTPProbe(p Probe, collector *MetronomeCollector) {
 	}
 	defer resp.Body.Close()
 
-	result.Success = true
-	result.Status = 1
 	result.Latency = latency
 	result.HTTPLatencies = httpLatencies
 	result.ResolvedIP = resolvedIP
@@ -137,49 +133,38 @@ func runHTTPProbe(p Probe, collector *MetronomeCollector) {
 		result.TLSExpiry = float64(cert.NotAfter.Unix())
 
 		if time.Now().After(cert.NotAfter) {
-			result.Status = 0
 			result.FailureReason = FailureReasonTLSCertificateExpired
 		}
 	}
 
-	if result.Status != 0 {
+	if result.FailureReason == FailureReasonNone {
 		if !isValidStatusCode(resp.StatusCode, p.SuccessCodes) {
-			result.Status = 0
 			result.FailureReason = FailureReasonHTTPStatusCode
 		}
 	}
 
 	var body []byte
 	var bodyReadErr error
-	if result.Status != 0 && (p.Contain != "" || p.NotContain != "") {
+	if result.FailureReason == FailureReasonNone && (p.Contain != "" || p.NotContain != "") {
 		body, bodyReadErr = io.ReadAll(resp.Body)
 		if bodyReadErr != nil {
-			result.Status = 0
 			result.FailureReason = FailureReasonHTTPBodyReadError
 		}
 	}
 
-	if result.Status != 0 {
+	if result.FailureReason == FailureReasonNone {
 		if p.Contain != "" {
 			if bodyReadErr == nil && !strings.Contains(string(body), p.Contain) {
-				result.Status = 0
 				result.FailureReason = FailureReasonHTTPBodyContains
 			}
 		}
 
 		if p.NotContain != "" {
 			if bodyReadErr == nil && strings.Contains(string(body), p.NotContain) {
-				result.Status = 0
 				result.FailureReason = FailureReasonHTTPBodyNotContains
 			}
 		}
 	}
 
-	if result.Status == 0 {
-		result.Success = false
-		if result.FailureReason == FailureReasonNone {
-			result.FailureReason = FailureReasonHTTPInvalidRequest
-		}
-	}
 	collector.UpdateResult(result)
 }

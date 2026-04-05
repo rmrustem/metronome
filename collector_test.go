@@ -16,16 +16,12 @@ func TestMetronomeCollector_DynamicLabels(t *testing.T) {
 	c.UpdateResult(ProbeResult{
 		Name:    "probe1",
 		Labels:  prometheus.Labels{"name": "probe1", "proto": "tcp", "target": "a"},
-		Success: true,
-		Status:  1,
 		Latency: 0.1,
 	})
 
 	c.UpdateResult(ProbeResult{
 		Name:      "probe2",
 		Labels:    prometheus.Labels{"name": "probe2", "proto": "https", "target": "b", "region": "us-east-1"},
-		Success:   true,
-		Status:    1,
 		Latency:   0.2,
 		TLSExpiry: 1234567890,
 	})
@@ -33,16 +29,12 @@ func TestMetronomeCollector_DynamicLabels(t *testing.T) {
 	c.UpdateResult(ProbeResult{
 		Name:    "probe3",
 		Labels:  prometheus.Labels{"name": "probe3", "proto": "http", "target": "c", "service": "web"},
-		Success: true,
-		Status:  1,
 		Latency: 0.3,
 	})
 
 	c.UpdateResult(ProbeResult{
 		Name:    "probe1",
 		Labels:  prometheus.Labels{"name": "probe1", "proto": "tcp", "target": "a"},
-		Success: true,
-		Status:  1,
 		Latency: 0.11,
 	})
 

@@ -41,7 +41,7 @@ func TestTCPProbe_Success(t *testing.T) {
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
-	assert.True(t, result.Success)
+	assert.Equal(t, FailureReasonNone, result.FailureReason)
 	assert.Equal(t, float64(0), result.TLSExpiry)
 }
 
@@ -58,7 +58,6 @@ func TestTCPProbe_ConnectionRefused(t *testing.T) {
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
-	assert.False(t, result.Success)
 	assert.Equal(t, FailureReasonConnectionRefused, result.FailureReason)
 }
 
@@ -75,7 +74,6 @@ func TestTCPProbe_ConnectionTimeout(t *testing.T) {
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
-	assert.False(t, result.Success)
 	assert.Equal(t, FailureReasonConnectionTimeout, result.FailureReason)
 }
 
@@ -92,7 +90,6 @@ func TestTCPProbe_DNSFailure(t *testing.T) {
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
-	assert.False(t, result.Success)
 	assert.Equal(t, FailureReasonDNSResolutionError, result.FailureReason)
 }
 
@@ -116,7 +113,7 @@ func TestTCPProbe_TLS_Success(t *testing.T) {
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
-	assert.True(t, result.Success)
+	assert.Equal(t, FailureReasonNone, result.FailureReason)
 	assert.Greater(t, result.TLSExpiry, 0.0)
 }
 
@@ -146,7 +143,6 @@ func TestTCPProbe_TLS_HandshakeError(t *testing.T) {
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
-	assert.False(t, result.Success)
 	assert.Equal(t, FailureReasonTLSHandshakeError, result.FailureReason)
 }
 
@@ -189,7 +185,6 @@ func TestTCPProbe_TLS_HostnameError(t *testing.T) {
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
-	assert.False(t, result.Success)
 	assert.Equal(t, FailureReasonTLSHostnameError, result.FailureReason)
 }
 
@@ -213,7 +208,6 @@ func TestTCPProbe_TLS_UnknownAuthority(t *testing.T) {
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
-	assert.False(t, result.Success)
 	assert.Equal(t, FailureReasonTLSUnknownAuthority, result.FailureReason)
 }
 
@@ -256,7 +250,6 @@ func TestTCPProbe_TLS_CertificateExpired(t *testing.T) {
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
-	assert.False(t, result.Success)
 	assert.Equal(t, FailureReasonTLSCertificateExpired, result.FailureReason)
 }
 
@@ -288,6 +281,5 @@ func TestTCPProbe_TLS_HandshakeFailed_NoFallback(t *testing.T) {
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
-	assert.False(t, result.Success)
 	assert.Equal(t, FailureReasonTLSHandshakeError, result.FailureReason)
 }

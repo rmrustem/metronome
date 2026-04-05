@@ -33,8 +33,6 @@ func TestHTTPProbe_Success(t *testing.T) {
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
 
-	assert.True(t, result.Success)
-	assert.Equal(t, float64(1), result.Status)
 	assert.Greater(t, result.Latency, 0.0)
 	assert.Equal(t, "test-svc", result.Labels["service"])
 	assert.Equal(t, FailureReasonNone, result.FailureReason)
@@ -53,8 +51,6 @@ func TestHTTPProbe_InvalidURL(t *testing.T) {
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
-	assert.False(t, result.Success)
-	assert.Equal(t, float64(0), result.Status)
 	assert.Equal(t, FailureReasonHTTPInvalidRequest, result.FailureReason)
 }
 
@@ -76,8 +72,6 @@ func TestHTTPProbe_Non200StatusCode(t *testing.T) {
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
-	assert.False(t, result.Success)
-	assert.Equal(t, float64(0), result.Status)
 	assert.Equal(t, FailureReasonHTTPStatusCode, result.FailureReason)
 }
 
@@ -100,8 +94,6 @@ func TestHTTPProbe_Timeout(t *testing.T) {
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
-	assert.False(t, result.Success)
-	assert.Equal(t, float64(0), result.Status)
 	assert.Equal(t, FailureReasonConnectionTimeout, result.FailureReason)
 }
 
@@ -121,8 +113,7 @@ func TestHTTPProbe_BodyContain_Success(t *testing.T) {
 	collector := NewMetronomeCollector()
 	runHTTPProbe(p, collector)
 	result, _ := collector.results[p.Name]
-	assert.True(t, result.Success)
-	assert.Equal(t, float64(1), result.Status)
+	assert.Equal(t, FailureReasonNone, result.FailureReason)
 }
 
 func TestHTTPProbe_BodyContain_Failure(t *testing.T) {
@@ -141,8 +132,6 @@ func TestHTTPProbe_BodyContain_Failure(t *testing.T) {
 	collector := NewMetronomeCollector()
 	runHTTPProbe(p, collector)
 	result, _ := collector.results[p.Name]
-	assert.False(t, result.Success)
-	assert.Equal(t, float64(0), result.Status)
 	assert.Equal(t, FailureReasonHTTPBodyContains, result.FailureReason)
 }
 
@@ -162,8 +151,7 @@ func TestHTTPProbe_BodyNotContain_Success(t *testing.T) {
 	collector := NewMetronomeCollector()
 	runHTTPProbe(p, collector)
 	result, _ := collector.results[p.Name]
-	assert.True(t, result.Success)
-	assert.Equal(t, float64(1), result.Status)
+	assert.Equal(t, FailureReasonNone, result.FailureReason)
 }
 
 func TestHTTPProbe_BodyNotContain_Failure(t *testing.T) {
@@ -182,8 +170,6 @@ func TestHTTPProbe_BodyNotContain_Failure(t *testing.T) {
 	collector := NewMetronomeCollector()
 	runHTTPProbe(p, collector)
 	result, _ := collector.results[p.Name]
-	assert.False(t, result.Success)
-	assert.Equal(t, float64(0), result.Status)
 	assert.Equal(t, FailureReasonHTTPBodyNotContains, result.FailureReason)
 }
 
@@ -268,7 +254,6 @@ func TestHTTPProbe_DNSFailure(t *testing.T) {
 
 	result, ok := collector.results[probe.Name]
 	require.True(t, ok)
-	assert.False(t, result.Success)
 	assert.Equal(t, FailureReasonDNSResolutionError, result.FailureReason)
 }
 
@@ -285,7 +270,6 @@ func TestHTTPProbe_ConnectionRefused(t *testing.T) {
 
 	result, ok := collector.results[probe.Name]
 	require.True(t, ok)
-	assert.False(t, result.Success)
 	assert.Equal(t, FailureReasonConnectionRefused, result.FailureReason)
 }
 
@@ -308,7 +292,7 @@ func TestHTTPProbe_TLS_Success(t *testing.T) {
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
-	assert.True(t, result.Success)
+	assert.Equal(t, FailureReasonNone, result.FailureReason)
 	assert.Greater(t, result.TLSExpiry, 0.0)
 }
 
@@ -331,7 +315,6 @@ func TestHTTPProbe_TLS_UnknownAuthority(t *testing.T) {
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
-	assert.False(t, result.Success)
 	assert.Equal(t, FailureReasonTLSUnknownAuthority, result.FailureReason)
 }
 
@@ -362,7 +345,6 @@ func TestHTTPProbe_TLS_CertificateExpired(t *testing.T) {
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
-	assert.False(t, result.Success)
 	assert.Equal(t, FailureReasonTLSCertificateExpired, result.FailureReason)
 }
 
@@ -387,8 +369,6 @@ func TestHTTPProbe_BodyReadError(t *testing.T) {
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
-	assert.False(t, result.Success)
-	assert.Equal(t, float64(0), result.Status)
 	assert.Equal(t, FailureReasonHTTPBodyReadError, result.FailureReason)
 }
 
@@ -421,6 +401,5 @@ func TestHTTPProbe_TLSHostnameError(t *testing.T) {
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
-	assert.False(t, result.Success)
 	assert.Equal(t, FailureReasonTLSHostnameError, result.FailureReason)
 }

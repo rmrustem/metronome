@@ -27,13 +27,9 @@ func runTCPProbe(ctx context.Context, p Probe, collector *MetronomeCollector) {
 		Name:    p.Name,
 		Labels:  labels,
 		Latency: latency,
-		Success: true,
-		Status:  1,
 	}
 
 	if err != nil {
-		result.Success = false
-		result.Status = 0
 		result.FailureReason = classifyError(err)
 		collector.UpdateResult(result)
 		return
@@ -61,8 +57,6 @@ func runTCPProbe(ctx context.Context, p Probe, collector *MetronomeCollector) {
 	defer cancel()
 
 	if err := tlsConn.HandshakeContext(tlsCtx); err != nil {
-		result.Success = false
-		result.Status = 0
 		result.FailureReason = classifyError(err)
 		collector.UpdateResult(result)
 		return
@@ -70,8 +64,6 @@ func runTCPProbe(ctx context.Context, p Probe, collector *MetronomeCollector) {
 
 	if state := tlsConn.ConnectionState(); len(state.PeerCertificates) > 0 {
 		if time.Now().After(state.PeerCertificates[0].NotAfter) {
-			result.Success = false
-			result.Status = 0
 			result.FailureReason = FailureReasonTLSCertificateExpired
 		} else {
 			result.TLSExpiry = float64(state.PeerCertificates[0].NotAfter.Unix())

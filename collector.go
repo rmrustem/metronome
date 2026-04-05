@@ -11,10 +11,8 @@ import (
 type ProbeResult struct {
 	Name          string
 	Labels        prometheus.Labels
-	Status        float64
-	Success       bool
 	FailureReason int
-	Requests      float64
+	Requests      uint64
 	Latency       float64
 	HTTPLatencies map[string]float64
 	HTTPCode      int
@@ -85,12 +83,12 @@ func (c *MetronomeCollector) Collect(ch chan<- prometheus.Metric) {
 			}
 		}
 
-		ch <- prometheus.MustNewConstMetric(c.probeRequestsDesc, prometheus.CounterValue, res.Requests, labelValues...)
+		ch <- prometheus.MustNewConstMetric(c.probeRequestsDesc, prometheus.CounterValue, float64(res.Requests), labelValues...)
 
 		ch <- prometheus.MustNewConstMetric(c.probeFailureReasonDesc, prometheus.GaugeValue, float64(res.FailureReason), labelValues...)
 
-		if res.Success {
-			ch <- prometheus.MustNewConstMetric(c.probeStatusDesc, prometheus.GaugeValue, res.Status, labelValues...)
+		if res.FailureReason == FailureReasonNone {
+			ch <- prometheus.MustNewConstMetric(c.probeStatusDesc, prometheus.GaugeValue, 1, labelValues...)
 			ch <- prometheus.MustNewConstMetric(c.probeLatencyDesc, prometheus.GaugeValue, res.Latency, labelValues...)
 		} else {
 			ch <- prometheus.MustNewConstMetric(c.probeStatusDesc, prometheus.GaugeValue, 0, labelValues...)
@@ -113,7 +111,7 @@ func (c *MetronomeCollector) Collect(ch chan<- prometheus.Metric) {
 }
 
 func (c *MetronomeCollector) UpdateResult(res ProbeResult) {
-	if !res.Success {
+	if res.FailureReason != FailureReasonNone {
 		args := make([]any, 0, len(res.Labels)*2+2)
 		for k, v := range res.Labels {
 			args = append(args, k, v)
