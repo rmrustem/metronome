@@ -146,7 +146,8 @@ func runHTTPProbe(p Probe, collector *MetronomeCollector) {
 	var body []byte
 	var bodyReadErr error
 	if result.FailureReason == FailureReasonNone && (p.Contain != "" || p.NotContain != "") {
-		body, bodyReadErr = io.ReadAll(resp.Body)
+		maxBytes := int64(getEnvInt("METRONOME_HTTP_BODY_READ_BYTES", 102400))
+		body, bodyReadErr = io.ReadAll(io.LimitReader(resp.Body, maxBytes))
 		if bodyReadErr != nil {
 			result.FailureReason = FailureReasonHTTPBodyReadError
 		}

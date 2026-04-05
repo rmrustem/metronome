@@ -77,6 +77,7 @@ probes:
 | `METRONOME_CONFIG_RELOAD_INTERVAL` | How often to check for configuration changes (in seconds). Set to `0` to disable. | `60` |
 | `METRONOME_PROBE_INTERVAL` | Default interval between probes if not specified (in seconds). | `30` |
 | `METRONOME_HTTP_USER_AGENT` | Custom User-Agent header for HTTP probes. | `Metronome` |
+| `METRONOME_HTTP_BODY_READ_BYTES` | Maximum number of bytes to read from an HTTP response body (e.g. for `contain` checks). | `102400` |
 | `METRONOME_WEB_LISTEN` | Address and port for the Prometheus metrics server to listen on. | `:8080` |
 
 ## Usage
