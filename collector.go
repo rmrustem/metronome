@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log/slog"
 	"sort"
 	"sync"
 
@@ -11,12 +12,14 @@ type ProbeResult struct {
 	Name          string
 	Labels        prometheus.Labels
 	Status        float64
-	Latency       float64
-	TLSExpiry     float64
-	HTTPLatencies map[string]float64
 	Success       bool
 	FailureReason int
 	Requests      float64
+	Latency       float64
+	HTTPLatencies map[string]float64
+	HTTPCode      int
+	ResolvedIP    string
+	TLSExpiry     float64
 }
 
 type MetronomeCollector struct {
@@ -110,6 +113,21 @@ func (c *MetronomeCollector) Collect(ch chan<- prometheus.Metric) {
 }
 
 func (c *MetronomeCollector) UpdateResult(res ProbeResult) {
+	if !res.Success {
+		args := make([]any, 0, len(res.Labels)*2+2)
+		for k, v := range res.Labels {
+			args = append(args, k, v)
+		}
+		args = append(args, "reason", res.FailureReason)
+		if res.ResolvedIP != "" {
+			args = append(args, "resolved_ip", res.ResolvedIP)
+		}
+		if res.HTTPCode != 0 {
+			args = append(args, "http_code", res.HTTPCode)
+		}
+		slog.Warn("Probe failed", args...)
+	}
+
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 

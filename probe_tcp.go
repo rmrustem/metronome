@@ -40,6 +40,8 @@ func runTCPProbe(ctx context.Context, p Probe, collector *MetronomeCollector) {
 	}
 	defer conn.Close()
 
+	result.ResolvedIP = conn.RemoteAddr().String()
+
 	if !p.TLS {
 		collector.UpdateResult(result)
 		return

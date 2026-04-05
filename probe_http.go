@@ -77,6 +77,7 @@ func runHTTPProbe(p Probe, collector *MetronomeCollector) {
 	req.Header.Set("User-Agent", userAgent)
 
 	var dnsStart, connectStart, tlsStart, wroteRequestTime time.Time
+	var resolvedIP string
 	httpLatencies := make(map[string]float64)
 
 	trace := &httptrace.ClientTrace{
@@ -91,6 +92,9 @@ func runHTTPProbe(p Probe, collector *MetronomeCollector) {
 		},
 		ConnectDone: func(_, _ string, _ error) {
 			httpLatencies["connect"] = time.Since(connectStart).Seconds()
+		},
+		GotConn: func(info httptrace.GotConnInfo) {
+			resolvedIP = info.Conn.RemoteAddr().String()
 		},
 		TLSHandshakeStart:    func() { tlsStart = time.Now() },
 		TLSHandshakeDone:     func(_ tls.ConnectionState, _ error) { httpLatencies["tls"] = time.Since(tlsStart).Seconds() },
@@ -115,6 +119,7 @@ func runHTTPProbe(p Probe, collector *MetronomeCollector) {
 	if err != nil {
 		result.Latency = latency
 		result.FailureReason = classifyError(err)
+		result.ResolvedIP = resolvedIP
 		collector.UpdateResult(result)
 		return
 	}
@@ -124,6 +129,8 @@ func runHTTPProbe(p Probe, collector *MetronomeCollector) {
 	result.Status = 1
 	result.Latency = latency
 	result.HTTPLatencies = httpLatencies
+	result.ResolvedIP = resolvedIP
+	result.HTTPCode = resp.StatusCode
 
 	if resp.TLS != nil && len(resp.TLS.PeerCertificates) > 0 {
 		cert := resp.TLS.PeerCertificates[0]
