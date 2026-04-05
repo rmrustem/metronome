@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"log/slog"
@@ -16,6 +18,7 @@ type ConfigLoader struct {
 	configPath    string
 	configURL     string
 	config        *Config
+	configHash    []byte
 	configChanges chan *Config
 	cancel        context.CancelFunc
 }
@@ -59,6 +62,11 @@ func (c *ConfigLoader) loadConfig() error {
 		}
 	}
 
+	hash := sha256.Sum256(data)
+	if c.configHash != nil && bytes.Equal(c.configHash, hash[:]) {
+		return nil
+	}
+
 	var config Config
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return err
@@ -68,11 +76,10 @@ func (c *ConfigLoader) loadConfig() error {
 		return err
 	}
 
-	if c.config == nil || !configsAreEqual(&config, c.config) {
-		c.config = &config
-		c.configChanges <- &config
-		slog.Info("Configuration loaded")
-	}
+	c.config = &config
+	c.configHash = hash[:]
+	c.configChanges <- &config
+	slog.Info("Configuration loaded")
 
 	return nil
 }
@@ -130,22 +137,6 @@ func downloadConfig(url string) ([]byte, error) {
 	}
 
 	return io.ReadAll(resp.Body)
-}
-
-func configsAreEqual(a, b *Config) bool {
-	if len(a.Probes) != len(b.Probes) {
-		return false
-	}
-	aProbes := make(map[string]Probe)
-	for _, p := range a.Probes {
-		aProbes[p.Name] = p
-	}
-	for _, p := range b.Probes {
-		if ap, ok := aProbes[p.Name]; !ok || !ap.Equal(p) {
-			return false
-		}
-	}
-	return true
 }
 
 func getEnvStr(key, fallback string) string {

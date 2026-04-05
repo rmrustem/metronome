@@ -225,3 +225,68 @@ probes:
 		t.Fatal("timed out waiting for config reload")
 	}
 }
+
+func TestConfigLoader_HashOptimization(t *testing.T) {
+	content := []byte(`
+probes:
+  - name: "test_probe"
+    proto: "http"
+    target: "http://localhost:8080"
+`)
+	tmpfile, err := os.CreateTemp("", "config_hash.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(tmpfile.Name())
+
+	if _, err := tmpfile.Write(content); err != nil {
+		t.Fatal(err)
+	}
+	tmpfile.Close()
+
+	os.Setenv("METRONOME_CONFIG_PATH", tmpfile.Name())
+	defer os.Unsetenv("METRONOME_CONFIG_PATH")
+
+	loader, err := NewConfigLoader()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer loader.Stop()
+
+	// Drain the initial config from the channel to avoid blocking in subsequent loadConfig calls
+	<-loader.Changes()
+
+	// Initial load
+	if len(loader.configHash) == 0 {
+		t.Fatal("configHash should be set after initial load")
+	}
+	initialHash := make([]byte, len(loader.configHash))
+	copy(initialHash, loader.configHash)
+
+	// Call loadConfig again with same content
+	err = loader.loadConfig()
+	if err != nil {
+		t.Errorf("loadConfig failed: %v", err)
+	}
+
+	// The hash should remain the same and no new change should be sent
+	// (Though NewConfigLoader already sent one change, we are not checking the channel here but the hash)
+	if string(loader.configHash) != string(initialHash) {
+		t.Error("Hash should not have changed")
+	}
+
+	// Modify file slightly (whitespace)
+	err = os.WriteFile(tmpfile.Name(), append(content, '\n'), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = loader.loadConfig()
+	if err != nil {
+		t.Errorf("loadConfig failed after whitespace change: %v", err)
+	}
+
+	if string(loader.configHash) == string(initialHash) {
+		t.Error("Hash should have changed after whitespace modification")
+	}
+}

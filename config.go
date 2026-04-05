@@ -22,6 +22,29 @@ func (c *Config) Validate() error {
 	return nil
 }
 
+func (p *Probe) Equal(other Probe) bool {
+	if p.Name != other.Name ||
+		p.Proto != other.Proto ||
+		p.Target != other.Target ||
+		p.Timeout != other.Timeout ||
+		p.SuccessCodes != other.SuccessCodes ||
+		p.Contain != other.Contain ||
+		p.NotContain != other.NotContain ||
+		p.InsecureSkipVerify != other.InsecureSkipVerify ||
+		p.TLS != other.TLS {
+		return false
+	}
+	if len(p.Labels) != len(other.Labels) {
+		return false
+	}
+	for k, v := range p.Labels {
+		if other.Labels[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
 type Probe struct {
 	Name                string            `yaml:"name"`
 	Proto               string            `yaml:"proto"`
@@ -48,27 +71,4 @@ func (p *Probe) Validate() error {
 		return fmt.Errorf("invalid proto %q, must be 'http' or 'tcp'", p.Proto)
 	}
 	return nil
-}
-
-func (p *Probe) Equal(other Probe) bool {
-	if p.Name != other.Name ||
-		p.Proto != other.Proto ||
-		p.Target != other.Target ||
-		p.Timeout != other.Timeout ||
-		p.SuccessCodes != other.SuccessCodes ||
-		p.Contain != other.Contain ||
-		p.NotContain != other.NotContain ||
-		p.InsecureSkipVerify != other.InsecureSkipVerify ||
-		p.TLS != other.TLS {
-		return false
-	}
-	if len(p.Labels) != len(other.Labels) {
-		return false
-	}
-	for k, v := range p.Labels {
-		if other.Labels[k] != v {
-			return false
-		}
-	}
-	return true
 }
