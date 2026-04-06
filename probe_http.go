@@ -94,6 +94,7 @@ func runHTTPProbe(ctx context.Context, p Probe, collector *MetronomeCollector) {
 	client := &http.Client{
 		Timeout: p.Timeout,
 		Transport: &http.Transport{
+			DisableKeepAlives: true,
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: p.InsecureSkipVerify,
 			},
