@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"io"
 	"net/http"
@@ -44,13 +45,13 @@ func isValidStatusCode(code int, successCodes string) bool {
 	return false
 }
 
-func runHTTPProbe(p Probe, collector *MetronomeCollector) {
+func runHTTPProbe(ctx context.Context, p Probe, collector *MetronomeCollector) {
 	result := ProbeResult{
 		Name:   p.Name,
 		Labels: p.PrecalculatedLabels,
 	}
 
-	req, err := http.NewRequest("GET", p.Target, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", p.Target, nil)
 	if err != nil {
 		result.FailureReason = FailureReasonHTTPInvalidRequest
 		collector.UpdateResult(result)

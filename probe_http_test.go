@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"net/http"
 	"net/http/httptest"
@@ -35,7 +36,7 @@ func TestHTTPProbe_Success(t *testing.T) {
 	}
 
 	collector := NewMetronomeCollector()
-	runHTTPProbe(p, collector)
+	runHTTPProbe(context.Background(), p, collector)
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
@@ -54,7 +55,7 @@ func TestHTTPProbe_InvalidURL(t *testing.T) {
 	}
 
 	collector := NewMetronomeCollector()
-	runHTTPProbe(p, collector)
+	runHTTPProbe(context.Background(), p, collector)
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
@@ -75,7 +76,7 @@ func TestHTTPProbe_Non200StatusCode(t *testing.T) {
 	}
 
 	collector := NewMetronomeCollector()
-	runHTTPProbe(p, collector)
+	runHTTPProbe(context.Background(), p, collector)
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
@@ -97,7 +98,7 @@ func TestHTTPProbe_Timeout(t *testing.T) {
 	}
 
 	collector := NewMetronomeCollector()
-	runHTTPProbe(p, collector)
+	runHTTPProbe(context.Background(), p, collector)
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
@@ -118,7 +119,7 @@ func TestHTTPProbe_BodyContain_Success(t *testing.T) {
 		Contain: "Hello",
 	}
 	collector := NewMetronomeCollector()
-	runHTTPProbe(p, collector)
+	runHTTPProbe(context.Background(), p, collector)
 	result, _ := collector.results[p.Name]
 	assert.Equal(t, FailureReasonNone, result.FailureReason)
 }
@@ -137,7 +138,7 @@ func TestHTTPProbe_BodyContain_Failure(t *testing.T) {
 		Contain: "Goodbye",
 	}
 	collector := NewMetronomeCollector()
-	runHTTPProbe(p, collector)
+	runHTTPProbe(context.Background(), p, collector)
 	result, _ := collector.results[p.Name]
 	assert.Equal(t, FailureReasonHTTPBodyContains, result.FailureReason)
 }
@@ -156,7 +157,7 @@ func TestHTTPProbe_BodyNotContain_Success(t *testing.T) {
 		NotContain: "Goodbye",
 	}
 	collector := NewMetronomeCollector()
-	runHTTPProbe(p, collector)
+	runHTTPProbe(context.Background(), p, collector)
 	result, _ := collector.results[p.Name]
 	assert.Equal(t, FailureReasonNone, result.FailureReason)
 }
@@ -175,7 +176,7 @@ func TestHTTPProbe_BodyNotContain_Failure(t *testing.T) {
 		NotContain: "Hello",
 	}
 	collector := NewMetronomeCollector()
-	runHTTPProbe(p, collector)
+	runHTTPProbe(context.Background(), p, collector)
 	result, _ := collector.results[p.Name]
 	assert.Equal(t, FailureReasonHTTPBodyNotContains, result.FailureReason)
 }
@@ -232,7 +233,7 @@ func TestHTTPProbe_UserAgent(t *testing.T) {
 		},
 	}
 	collector1 := NewMetronomeCollector()
-	runHTTPProbe(p1, collector1)
+	runHTTPProbe(context.Background(), p1, collector1)
 
 	customUA := "MyCustomMetronome/1.0"
 	os.Setenv("METRONOME_HTTP_USER_AGENT", customUA)
@@ -257,7 +258,7 @@ func TestHTTPProbe_UserAgent(t *testing.T) {
 		},
 	}
 	collector2 := NewMetronomeCollector()
-	runHTTPProbe(p2, collector2)
+	runHTTPProbe(context.Background(), p2, collector2)
 }
 
 func TestHTTPProbe_DNSFailure(t *testing.T) {
@@ -269,7 +270,7 @@ func TestHTTPProbe_DNSFailure(t *testing.T) {
 		Timeout: 1 * time.Second,
 	}
 
-	runHTTPProbe(probe, collector)
+	runHTTPProbe(context.Background(), probe, collector)
 
 	result, ok := collector.results[probe.Name]
 	require.True(t, ok)
@@ -285,7 +286,7 @@ func TestHTTPProbe_ConnectionRefused(t *testing.T) {
 		Timeout: 1 * time.Second,
 	}
 
-	runHTTPProbe(probe, collector)
+	runHTTPProbe(context.Background(), probe, collector)
 
 	result, ok := collector.results[probe.Name]
 	require.True(t, ok)
@@ -307,7 +308,7 @@ func TestHTTPProbe_TLS_Success(t *testing.T) {
 	}
 
 	collector := NewMetronomeCollector()
-	runHTTPProbe(p, collector)
+	runHTTPProbe(context.Background(), p, collector)
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
@@ -330,7 +331,7 @@ func TestHTTPProbe_TLS_UnknownAuthority(t *testing.T) {
 	}
 
 	collector := NewMetronomeCollector()
-	runHTTPProbe(p, collector)
+	runHTTPProbe(context.Background(), p, collector)
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
@@ -360,7 +361,7 @@ func TestHTTPProbe_TLS_CertificateExpired(t *testing.T) {
 	}
 
 	collector := NewMetronomeCollector()
-	runHTTPProbe(p, collector)
+	runHTTPProbe(context.Background(), p, collector)
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
@@ -384,7 +385,7 @@ func TestHTTPProbe_BodyReadError(t *testing.T) {
 	}
 
 	collector := NewMetronomeCollector()
-	runHTTPProbe(p, collector)
+	runHTTPProbe(context.Background(), p, collector)
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)
@@ -416,7 +417,7 @@ func TestHTTPProbe_TLSHostnameError(t *testing.T) {
 	}
 
 	collector := NewMetronomeCollector()
-	runHTTPProbe(p, collector)
+	runHTTPProbe(context.Background(), p, collector)
 
 	result, ok := collector.results[p.Name]
 	require.True(t, ok)

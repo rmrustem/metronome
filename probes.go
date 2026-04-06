@@ -55,7 +55,7 @@ func runProbe(ctx context.Context, p Probe, collector *MetronomeCollector) {
 		case "tcp":
 			go runTCPProbe(ctx, p, collector)
 		case "http":
-			go runHTTPProbe(p, collector)
+			go runHTTPProbe(ctx, p, collector)
 		}
 
 		select {
