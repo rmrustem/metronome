@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    name: Build and Release
+    name: Build binaries
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -35,6 +35,23 @@ jobs:
           BINARY_NAME=metronome-${{ matrix.goos }}-${{ matrix.goarch }}
           go build -v -o $BINARY_NAME .
           tar -czvf ${BINARY_NAME}.tar.gz $BINARY_NAME LICENSE README.md
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: metronome-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: metronome-*.tar.gz
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: metronome-*
+          merge-multiple: true
 
       - name: Release
         uses: softprops/action-gh-release@v2
