@@ -4,23 +4,22 @@ Metronome is a lightweight monitoring tool designed to perform periodic HTTP and
 
 ## Features
 
-- **Multi-protocol Probing**: Supports both HTTP and TCP probes.
-- **TLS/SSL Monitoring**: Automatically checks TLS certificate expiration and reports it as a Prometheus metric.
-- **Customizable Success Criteria**: Define success based on HTTP status codes, body content existence, or non-existence.
-- **Dynamic Configuration**: Supports reloading configuration from a local file or a remote URL without restarting.
-- **Prometheus Integration**: Exports metrics in a format compatible with Prometheus.
-- **Detailed Latency Tracking**: Tracks DNS, connection, and TLS handshake latencies for HTTP probes.
+- Supports HTTP/HTTPS and TCP probes
+- TLS certificate expiration as Prometheus metric
+- Local file or remote URL configuration
+- Automatic configuration reloading
+- Customizable HTTP success criteria based on HTTP status codes, and keyword existence/non-existence in body content
+- Prometheus metrics with custom labels
+- Detailed HTTP latency tracking
 
-## Comparison with Prometheus Blackbox Exporter
+## Metronome vs Prometheus Blackbox Exporter
 
 Metronome is designed as a simpler, more lightweight alternative to the [Prometheus Blackbox Exporter](https://github.com/prometheus/blackbox_exporter). While the Blackbox Exporter is highly versatile and supports many protocols (ICMP, DNS, gRPC, etc.), it can be complex to configure due to its module-based architecture.
 
-**Key differences:**
-- **Codebase Complexity**: Metronome has a highly focused codebase (under 1,000 lines of core Go logic), making it significantly easier to audit, understand, and extend for specific needs compared to the much larger and more modular Blackbox Exporter.
-- **Asynchronous Probing**: Unlike the Blackbox Exporter, which typically performs probes synchronously when scraped by Prometheus, Metronome runs probes independently and asynchronously according to its own schedule. This ensures consistent probe intervals and makes metrics immediately available without adding latency to Prometheus scrapes.
-- **Simplified Configuration**: Metronome uses a straightforward per-probe configuration model, avoiding the multi-level module/target system that can make the Blackbox Exporter's configuration complex.
-- **Ease of Deployment**: Ideal for environments where only HTTP/TCP checks and TLS monitoring are needed, providing a smaller footprint and faster startup.
-- **Native Remote Configuration**: Metronome can pull its configuration directly from a remote HTTP URL with built-in authentication support, simplifying configuration management in dynamic environments.
+### Key differences
+- Unlike the Blackbox Exporter, which performs probes synchronously when scraped by Prometheus, Metronome runs probes independently and asynchronously according to its own schedule. This ensures consistent probe intervals and makes metrics immediately available without adding latency to Prometheus scrapes.
+- Metronome uses a straightforward per-probe configuration model, avoiding the multi-level module/target system that makes the Blackbox Exporter's configuration complex.
+- Metronome has a highly focused codebase (under 1,000 lines of core Go logic), making it significantly easier to audit, understand, and extend for specific needs compared to the much larger and more modular Blackbox Exporter.
 
 ## Installation
 
@@ -32,7 +31,36 @@ cd metronome
 go build -o metronome
 ```
 
-## Configuration
+## Usage
+
+Metronome is configured primarily through environment variables and a configuration file containing probe definitions. By default, Metronome reads `config.yaml` from the current directory, so you can just run:
+
+```bash
+./metronome
+```
+
+To specify a different configuration file path, use the `METRONOME_CONFIG_PATH` environment variable:
+
+```bash
+METRONOME_CONFIG_PATH=/path/to/my-config.yaml ./metronome
+```
+
+By default, Metronome exports metrics on `:8080/metrics`.
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `METRONOME_CONFIG_PATH` | Path to the local configuration file. | `config.yaml` |
+| `METRONOME_CONFIG_URL` | URL to fetch the configuration from (overrides local file). | - |
+| `METRONOME_CONFIG_URL_AUTH` | Value for the `Authorization` header when fetching remote config. | - |
+| `METRONOME_CONFIG_RELOAD_INTERVAL` | How often to check for configuration changes (in seconds). Set to `0` to disable. | `60` |
+| `METRONOME_PROBE_INTERVAL` | Default interval between probes if not specified (in seconds). | `30` |
+| `METRONOME_HTTP_USER_AGENT` | Custom User-Agent header for HTTP probes. | `Metronome` |
+| `METRONOME_HTTP_BODY_READ_BYTES` | Maximum number of bytes to read from an HTTP response body (e.g. for `contain` checks). | `102400` |
+| `METRONOME_WEB_LISTEN` | Address and port for the Prometheus metrics server to listen on. | `:8080` |
+
+### Configuration
 
 Metronome uses a YAML configuration file (`config.yaml`) to define the probes.
 
@@ -50,16 +78,15 @@ probes:
     proto: "tcp"
     target: "go.dev:443"
     tls: true
-    timeout: 5s
 ```
 
 ### Configuration Parameters
 
 | Parameter | Description |
 |-----------|-------------|
-| `name` | Unique name for the probe. |
-| `proto` | Protocol to use (`http` or `tcp`). This field is required. |
-| `target` | The URL or host:port to probe. |
+| `name`* | Unique name for the probe. |
+| `proto`* | Protocol to use (`http` or `tcp`). |
+| `target`* | The URL or host:port to probe. |
 | `timeout` | Probe timeout (e.g., `5s`). |
 | `labels` | Additional key-value pairs to add as Prometheus labels. |
 | `success_codes` | Comma-separated list or ranges of HTTP status codes considered successful (e.g., `200-299,404`). |
@@ -67,35 +94,6 @@ probes:
 | `not_contain` | String that must NOT be present in the HTTP response body. |
 | `insecure_skip_verify` | If true, TLS certificate verification is skipped. |
 | `tls` | If true, perform TLS handshake (only for TCP probes, HTTP uses URL scheme). |
-
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `METRONOME_CONFIG_PATH` | Path to the local configuration file. | `config.yaml` |
-| `METRONOME_CONFIG_URL` | URL to fetch the configuration from (overrides local file). | - |
-| `METRONOME_CONFIG_URL_AUTH` | Value for the `Authorization` header when fetching remote config. | - |
-| `METRONOME_CONFIG_RELOAD_INTERVAL` | How often to check for configuration changes (in seconds). Set to `0` to disable. | `60` |
-| `METRONOME_PROBE_INTERVAL` | Default interval between probes if not specified (in seconds). | `30` |
-| `METRONOME_HTTP_USER_AGENT` | Custom User-Agent header for HTTP probes. | `Metronome` |
-| `METRONOME_HTTP_BODY_READ_BYTES` | Maximum number of bytes to read from an HTTP response body (e.g. for `contain` checks). | `102400` |
-| `METRONOME_WEB_LISTEN` | Address and port for the Prometheus metrics server to listen on. | `:8080` |
-
-## Usage
-
-Metronome is configured primarily through environment variables. To run Metronome with the default configuration (`config.yaml` in the current directory):
-
-```bash
-./metronome
-```
-
-To specify a different configuration file path, use the `METRONOME_CONFIG_PATH` environment variable:
-
-```bash
-METRONOME_CONFIG_PATH=/path/to/my-config.yaml ./metronome
-```
-
-By default, Metronome exports metrics on `:8080/metrics`.
 
 ## Exported Metrics
 
@@ -108,22 +106,22 @@ By default, Metronome exports metrics on `:8080/metrics`.
 
 ### Failure Reason Codes
 
-| Code | Constant Name | Description |
-|------|---------------|-------------|
-| `0` | `FailureReasonNone` | Probe was successful. |
-| `1001` | `FailureReasonDNSResolutionError` | Failed to resolve the target hostname. |
-| `1101` | `FailureReasonConnectionTimeout` | Network connection timed out. |
-| `1102` | `FailureReasonConnectionRefused` | Connection was refused by the target. |
-| `1201` | `FailureReasonTLSHandshakeError` | Generic TLS handshake failure (including SNI issues). |
-| `1202` | `FailureReasonTLSCertificateExpired` | Target certificate has expired. |
-| `1203` | `FailureReasonTLSUnknownAuthority` | Certificate signed by an unknown CA. |
-| `1204` | `FailureReasonTLSHostnameError` | Certificate does not match the target hostname. |
-| `1205` | `FailureReasonTLSCertificateInvalid` | Other certificate validation errors. |
-| `1300` | `FailureReasonHTTPInvalidRequest` | Could not construct the HTTP request. |
-| `1301` | `FailureReasonHTTPStatusCode` | Response status code did not match success criteria. |
-| `1302` | `FailureReasonHTTPBodyReadError` | Failed to read the response body. |
-| `1303` | `FailureReasonHTTPBodyContains` | `contain` string was not found in the response body. |
-| `1304` | `FailureReasonHTTPBodyNotContains` | `not_contain` string was found in the response body. |
+| Code | Description |
+|------|-------------|
+| `0` | Probe was successful. |
+| `1001` | Failed to resolve the target hostname. |
+| `1101` | Network connection timed out. |
+| `1102` | Connection was refused by the target. |
+| `1201` | Generic TLS handshake failure (including SNI issues). |
+| `1202` | Target certificate has expired. |
+| `1203` | Certificate signed by an unknown CA. |
+| `1204` | Certificate does not match the target hostname. |
+| `1205` | Other certificate validation errors. |
+| `1300` | Could not construct the HTTP request. |
+| `1301` | Response status code did not match success criteria. |
+| `1302` | Failed to read the response body. |
+| `1303` | `contain` string was not found in the response body. |
+| `1304` | `not_contain` string was found in the response body. |
 
 ## Prometheus Alerting Rules
 
